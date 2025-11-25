@@ -40,76 +40,79 @@ fun WeatherWidget(
     modifier: Modifier = Modifier,
     locationProvider: LocationProvider = rememberPlatformLocationProvider()
 ) {
-    val payloadLat = descriptor.payload["lat"]?.toDoubleOrNull()
-    val payloadLon = descriptor.payload["lon"]?.toDoubleOrNull()
-    val payloadCity = descriptor.payload["city"]
+    val payloadLatitude = descriptor.payload["lat"]?.toDoubleOrNull()
+    val payloadLongitude = descriptor.payload["lon"]?.toDoubleOrNull()
+    val payloadCityName = descriptor.payload["city"]
 
-    var deviceLocation by remember { mutableStateOf<GeoPoint?>(null) }
+    var deviceGeoPoint by remember { mutableStateOf<GeoPoint?>(null) }
 
     // Если в payload нет координат, пробуем взять локальные
     LaunchedEffect(descriptor.id) {
-        if (payloadLat == null || payloadLon == null) {
-            deviceLocation = try {
+        if (payloadLatitude == null || payloadLongitude == null) {
+            deviceGeoPoint = try {
                 locationProvider.getCurrentLocation()
-            } catch (e: Exception) {
-                e.printStackTrace()
+            } catch (exception: Exception) {
+                exception.printStackTrace()
                 null
             }
         }
     }
 
     // Итоговые координаты
-    val lat = payloadLat ?: deviceLocation?.lat
-    val lon = payloadLon ?: deviceLocation?.lon
+    val finalLatitude = payloadLatitude ?: deviceGeoPoint?.lat
+    val finalLongitude = payloadLongitude ?: deviceGeoPoint?.lon
 
-    val city = when {
-        payloadCity != null -> payloadCity
-        deviceLocation != null -> "Текущее местоположение"
+    val cityName = when {
+        payloadCityName != null -> payloadCityName
+        deviceGeoPoint != null -> "Текущее местоположение"
         else -> "Город"
     }
 
-    var tempText by remember { mutableStateOf("--°") }
-    var descText by remember { mutableStateOf("Загрузка...") }
-    var iconText by remember { mutableStateOf("⏳") }
+    var temperatureText by remember { mutableStateOf("--°") }
+    var descriptionText by remember { mutableStateOf("Загрузка...") }
+    var iconEmojiText by remember { mutableStateOf("⏳") }
 
     // При наличии координат грузим погоду
-    LaunchedEffect(descriptor.id, lat, lon) {
-        if (lat == null || lon == null) {
-            descText = "Нет координат"
-            tempText = "--°"
-            iconText = "⚠️"
+    LaunchedEffect(descriptor.id, finalLatitude, finalLongitude) {
+        if (finalLatitude == null || finalLongitude == null) {
+            descriptionText = "Нет координат"
+            temperatureText = "--°"
+            iconEmojiText = "⚠️"
             return@LaunchedEffect
         }
 
-        val client = HttpClient()
+        val httpClient = HttpClient()
         try {
-            val response = withContext(Dispatchers.IO) {
-                client.get(
+            val responseBody = withContext(Dispatchers.IO) {
+                httpClient.get(
                     "https://api.open-meteo.com/v1/forecast" +
-                            "?latitude=$lat&longitude=$lon&current_weather=true"
+                            "?latitude=$finalLatitude&longitude=$finalLongitude&current_weather=true"
                 ).body<String>()
             }
 
-            val json = Json { ignoreUnknownKeys = true }
-            val parsed = json.decodeFromString(OpenMeteoResponse.serializer(), response)
-            val cw = parsed.current_weather
+            val jsonParser = Json { ignoreUnknownKeys = true }
+            val openMeteoResponse = jsonParser.decodeFromString(
+                OpenMeteoResponse.serializer(),
+                responseBody
+            )
+            val currentWeather = openMeteoResponse.current_weather
 
-            if (cw != null) {
-                tempText = "${cw.temperature.toInt()}°"
-                val ui = weatherCodeToUi(cw.weathercode)
-                descText = ui.description
-                iconText = ui.icon
+            if (currentWeather != null) {
+                temperatureText = "${currentWeather.temperature.toInt()}°"
+                val weatherUi = weatherCodeToUi(currentWeather.weathercode)
+                descriptionText = weatherUi.description
+                iconEmojiText = weatherUi.icon
             } else {
-                descText = "Нет данных"
-                iconText = "❔"
+                descriptionText = "Нет данных"
+                iconEmojiText = "❔"
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            descText = "Ошибка загрузки"
-            tempText = "--°"
-            iconText = "⚠️"
+        } catch (exception: Exception) {
+            exception.printStackTrace()
+            descriptionText = "Ошибка загрузки"
+            temperatureText = "--°"
+            iconEmojiText = "⚠️"
         } finally {
-            client.close()
+            httpClient.close()
         }
     }
 
@@ -137,7 +140,7 @@ fun WeatherWidget(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    text = iconText,
+                    text = iconEmojiText,
                     fontSize = 26.sp
                 )
 
@@ -145,11 +148,8 @@ fun WeatherWidget(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-
-
-
                     Text(
-                        text = city,
+                        text = cityName,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color(0xFFF9FAFB)
@@ -160,13 +160,13 @@ fun WeatherWidget(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = tempText,
+                            text = temperatureText,
                             fontSize = 24.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFFBFDBFE)
                         )
                         Text(
-                            text = descText,
+                            text = descriptionText,
                             fontSize = 12.sp,
                             color = Color(0xFF9CA3AF)
                         )

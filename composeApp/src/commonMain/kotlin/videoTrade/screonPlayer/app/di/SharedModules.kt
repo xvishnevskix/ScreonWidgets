@@ -14,9 +14,7 @@ private val domainModule = module {
 private val presentationModule = module {
 
     single {
-        VideoPlayerViewModel(
-            player = get(),
-        )
+        VideoPlayerViewModel()
     }
 }
 

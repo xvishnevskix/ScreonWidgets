@@ -18,8 +18,6 @@ import videoTrade.screonPlayer.app.domain.repository.VideoPlayer
 
 
 class VideoPlayerViewModel(
-    private val player: VideoPlayer,
-
 ) : ViewModel(), KoinComponent {
 
     private val _playlist = mutableStateListOf<VideoItem>()
@@ -75,14 +73,7 @@ class VideoPlayerViewModel(
         return true
     }
 
-    fun cutToPendingNow() {
-        // обрываем текущее воспроизведение
-        player.stop()
-        // тут же подменяем на staged плейлист
-        applyPendingIfAny()
 
-        player.forceRecreateVout()
-    }
 
 
     val currentVideo: State<VideoItem?> = derivedStateOf {
@@ -138,35 +129,10 @@ class VideoPlayerViewModel(
         }
     }
 
-    fun playCurrent() {
-        currentVideo.value?.let { item ->
-            currentItemStartedAtMs = Clock.System.now().toEpochMilliseconds()
-            currentItemIsVideo = item.type.startsWith("video/")
-            if (currentItemIsVideo) {
-                player.play(item.filePath)
-            } else {
-                player.stop()
-                // картинка просто держится на экране n секунд
-            }
-        }
-    }
 
-    fun getCurrentItemElapsedMs(): Long {
-        return if (currentItemIsVideo) getCurrentPositionMs()
-        else (Clock.System.now().toEpochMilliseconds() - currentItemStartedAtMs)
-    }
 
-    fun togglePlayPause() {
-        if (player.isPlaying()) {
-            player.pause()
-            _isPlaying.value = false
-        } else {
-            _isPlaying.value = true
-            player.resume()
-        }
-    }
 
-    fun pausePlayback() = player.pause()
+
 
     fun previous() {
         if (_playlist.isNotEmpty()) {
@@ -174,11 +140,7 @@ class VideoPlayerViewModel(
         }
     }
 
-    suspend fun previousAndPlay() {
-        previous()
-        player.awaitReady()
-        playCurrent()
-    }
+
 
     fun select(index: Int) {
         if (index in _playlist.indices) {
@@ -192,12 +154,7 @@ class VideoPlayerViewModel(
         _playlist.sortBy { it.orderIndex }
     }
 
-    fun getCurrentPositionMs(): Long {
-        val it = currentVideo.value ?: return 0L
-        val durMs = (it.duration * 1000).toLong().coerceAtLeast(1L)
-        val p = player.getProgress() // 0..1
-        return (p * durMs).toLong()
-    }
+
 
 
     fun clearPlaylist() {
