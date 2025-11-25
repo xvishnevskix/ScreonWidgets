@@ -7,7 +7,8 @@
 
 - Установите **Android Studio** (последнюю стабильную версию).
 - При первом запуске согласитесь установить компоненты Android SDK.
-- Откройте проект через **File → Open…**, указав папку с `build.gradle.kts` / `settings.gradle.kts`.
+- Откройте проект через GIT или через **File → Open…**, указав папку с `build.gradle.kts` / `settings.gradle.kts`.
+- Работайте в своей ветке под названием виджета.
 
 ### Эмулятор Android TV / Android
 
