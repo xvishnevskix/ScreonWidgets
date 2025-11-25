@@ -1,20 +1,337 @@
-# Compose Multiplatform Application
+# 📘 Библиотека виджетов для плеера Screon
+---
 
-## Before running!
- - install JDK 17 or higher on your machine
- - add `local.properties` file to the project root and set a path to Android SDK there
+## 🧰 Установка окружения
 
-### Android
-To run the application on android device/emulator:  
- - open project in Android Studio and run imported android run configuration
+### Android Studio
 
-To build the application bundle:
- - run `./gradlew :composeApp:assembleDebug`
- - find `.apk` file in `composeApp/build/outputs/apk/debug/composeApp-debug.apk`
-Run android UI tests on the connected device: `./gradlew :composeApp:connectedDebugAndroidTest`
+- Установите **Android Studio** (последнюю стабильную версию).
+- При первом запуске согласитесь установить компоненты Android SDK.
+- Откройте проект через **File → Open…**, указав папку с `build.gradle.kts` / `settings.gradle.kts`.
 
-### Desktop
-Run the desktop application: `./gradlew :composeApp:run`
-Run the desktop **hot reload** application: `./gradlew :composeApp:jvmRunHot`
-Run desktop UI tests: `./gradlew :composeApp:jvmTest`
+### Эмулятор Android TV / Android
 
+- Откройте **Tools → Device Manager**.
+- Нажмите **Create Device…**.
+- Выберите профиль **Android TV**.
+- Выберите образ Android (Можно взять API 36 или любую 26+).
+- Создайте и запустите виртуальное устройство.
+
+Эмулятора более чем достаточно для разработки и тестирования большинства виджетов.
+
+---
+
+## 🗂 Структура проекта
+
+Проект использует **Kotlin Multiplatform + Compose Multiplatform**.  
+Код разделён на:
+
+- **общий модуль** (`commonMain`) — логика и UI виджетов,
+- **андроид-модуль** (`androidMain`) — код, завязанный на Android (Activity, разрешения, системные сервисы и т.п.).
+
+### Общий модуль (`commonMain`)
+
+Путь:
+```text
+src/commonMain/kotlin/videoTrade/screonPlayer/app/
+```
+
+Здесь находятся:
+
+- корневой UI (`App.kt`);
+- доменные модели, в том числе:
+  ```kotlin
+  enum class WidgetType { CLOCK, COUNTDOWN, WEATHER /* + ваши */ }
+
+  data class WidgetLayout(
+      val position: WidgetPosition,
+      val marginDp: Int = 8,
+      val widthFraction: Float? = null,
+      val heightFraction: Float? = null
+  )
+
+  data class WidgetDescriptor(
+      val id: String,
+      val type: WidgetType,
+      val layout: WidgetLayout,
+      val payload: Map<String, String> = emptyMap()
+  )
+  ```
+- виджеты:
+  ```text
+  src/commonMain/kotlin/videoTrade/screonPlayer/app/presentation/components/widgets/
+    ├─ WeatherWidget.kt
+    └─ WidgetsOverlay.kt
+  ```
+- вспомогательные классы, которые могут использоваться виджетами.
+
+👉 **Основная работа происходит именно в общем модуле.**
+
+### Андроид-модуль (`androidMain`)
+
+Путь:
+```text
+src/androidMain/kotlin/videoTrade/screonPlayer/app/
+```
+
+Здесь находятся:
+
+- `AppActivity` — точка входа Android-приложения:
+  ```kotlin
+  class AppActivity : ComponentActivity() {
+      override fun onCreate(savedInstanceState: Bundle?) {
+          super.onCreate(savedInstanceState)
+          // Настройка окна, DI, разрешения и т.д.
+          setContent { App() } // вызывает общий Composable из commonMain
+      }
+  }
+  ```
+- код, который использует Android API:
+  - запросы разрешений (камера, микрофон, местоположение),
+  - сетевые и системные сервисы.
+
+👉 Трогать модуль скорее всего не придётся, **кроме случаев, когда виджет требует специфического Android‑функционала** (см. раздел «При необходимости дописать Android‑модуль» ниже).
+
+---
+
+## 🎯 Задание
+
+Создать виджет по следующим правилам:
+
+- виджет получает входные данные из `payload: Map<String, String>` (названия сущностей могут быть произвольными, логически подходящими под тематику и функционал виджета);
+- если каких-то значений нет в `payload`, он использует **разумные значения по умолчанию** (например, простой текст, текущие время/дату, константы);
+- UI пишется на **Jetpack Compose Multiplatform**;
+- структура и стиль кода берутся по образцу **WeatherWidget**.
+
+Виджет погоды — пример более сложного виджета, который:
+
+- читает настройки из `payload` (`city`, `latitude`, `longitude`);
+- при необходимости делает HTTP‑запрос к внешнему API;
+- выводит красивый UI.
+
+---
+
+## 🧱 Как устроены виджеты
+
+### WidgetDescriptor
+
+Описывает конкретный виджет, который нужно отрисовать:
+
+```kotlin
+data class WidgetDescriptor(
+    val id: String,
+    val type: WidgetType,
+    val layout: WidgetLayout,
+    val payload: Map<String, String> = emptyMap()
+)
+```
+
+Примеры значений `payload` (в JSON‑виде для понимания):
+
+```json
+{
+  "title": "Акция дня",
+  "subtitle": "Скидка 20 %",
+  "color": "#FF0000"
+}
+```
+
+### WidgetLayout и позиционирование
+
+Размещение виджета задаётся в `WidgetLayout`:
+
+```kotlin
+WidgetLayout(
+    position = WidgetPosition.TOP_RIGHT,
+    marginDp = 8
+)
+```
+
+В `WidgetsOverlay` позиция интерпретируется и виджет выравнивается по экрану:
+
+```kotlin
+when (widget.layout.position) {
+    WidgetPosition.TOP_LEFT    -> baseModifier.align(Alignment.TopStart)
+    WidgetPosition.TOP_RIGHT   -> baseModifier.align(Alignment.TopEnd)
+    WidgetPosition.BOTTOM_LEFT -> baseModifier.align(Alignment.BottomStart)
+    WidgetPosition.BOTTOM_RIGHT-> baseModifier.align(Alignment.BottomEnd)
+    WidgetPosition.CENTER      -> baseModifier.align(Alignment.Center)
+    // и дополнительные варианты (TOP, BOTTOM и т.д. — подходит для бегущих строк, например)
+}
+```
+
+### WidgetsOverlay — место, где регистрируются все виджеты
+
+Файл:
+```text
+src/commonMain/kotlin/videoTrade/screonPlayer/app/presentation/components/widgets/WidgetsOverlay.kt
+```
+
+Именно здесь на основе `WidgetType` выбирается, какой Composable вызвать:
+
+```kotlin
+when (widget.type) {
+    WidgetType.WEATHER -> WeatherWidget(widget, alignedModifier)
+    // сюда будут добавляться новые виджеты:
+    // WidgetType.CLOCK   -> ClockWidget(widget, alignedModifier)
+}
+```
+
+---
+
+## 🧩 Где писать свой виджет
+
+Папка для виджетов:
+```text
+src/commonMain/kotlin/videoTrade/screonPlayer/app/presentation/components/widgets/
+```
+
+Нужно:
+
+- добавить новый тип в `WidgetType` (в доменной модели виджетов);
+- создать файл `MyWidget.kt` с реализацией Composable;
+- зарегистрировать этот виджет в `WidgetsOverlay.kt`.
+
+---
+
+## 💡 Принцип написания виджета (на примере погоды)
+
+Смотрите файл `WeatherWidget.kt`:
+
+```kotlin
+@Composable
+fun WeatherWidget(
+    descriptor: WidgetDescriptor,
+    modifier: Modifier = Modifier
+) {
+    // 1. Читаем настройки из payload
+    val payloadCityName = descriptor.payload["city"] ?: "Город по умолчанию"
+
+    // При желании можно читать и другие параметры:
+    // val payloadLatitude = descriptor.payload["lat"]?.toDoubleOrNull()
+    // val payloadLongitude = descriptor.payload["lon"]?.toDoubleOrNull()
+
+    // 2. Локальное состояние для отображения
+    var temperatureText by remember { mutableStateOf("--°") }
+    var descriptionText by remember { mutableStateOf("Загрузка...") }
+
+    // 3. При необходимости — асинхронная логика (сетевой запрос и т.п.)
+    LaunchedEffect(descriptor.id) {
+        // Здесь в примере виджета погоды используется Ktor-клиент
+        // и JSON-сериализация.
+    }
+
+    // 4. UI
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = Color.Transparent
+    ) {
+        // Внутри — Box/Row/Column, Text, и т.д.
+        // См. реальную реализацию WeatherWidget.kt как подробный пример.
+    }
+}
+```
+
+Общий паттерн для любого виджета:
+
+- читаем значения из `descriptor.payload["ключ"]`;
+- если значения нет — подставляем дефолт (локальные значения времени, геопозиции и т.д. если есть возможность);
+- при необходимости сохраняем их в `remember { mutableStateOf(...) }`;
+- отображаем через Compose (Surface/Box/Row/Column/Text/…).
+
+---
+
+## 🧩 Подключение нового виджета в WidgetsOverlay
+
+После того как реализован `MyWidget.kt` и добавлен тип в `WidgetType`,  
+нужно зарегистрировать его в `WidgetsOverlay.kt`:
+
+```kotlin
+when (widget.type) {
+    WidgetType.WEATHER -> WeatherWidget(widget, alignedModifier)
+    WidgetType.MY_WIDGET -> MyWidget(widget, alignedModifier)
+}
+```
+
+Теперь, если VideoPlayerScreen получит `WidgetDescriptor` с `type = WidgetType.MY_WIDGET`, ваш виджет будет отрисован. В VideoPlayerScreen есть пример как можно вставить свой виджет и отобразить его на экране.
+
+---
+
+## 🛠 При необходимости дописать Android‑модуль
+
+Иногда виджету может понадобиться функциональность, доступная только на Android:
+
+- датчики устройства (акселерометр, яркость экрана и т.п.);
+- специфичные системные настройки;
+- работа с файлами/хранилищем на уровне Android API;
+- дополнительные разрешения (например, доступ к геолокации).
+
+Общий подход:
+
+- Максимально возможную часть логики пишем в **commonMain**.
+- В **androidMain** выносим только то, что напрямую зависит от Android SDK.
+
+Есть два типичных варианта.
+
+### Вариант 1: expect/actual
+
+В `commonMain` объявляется контракт:
+
+```kotlin
+// commonMain
+expect class PlatformService() {
+    fun getSomethingPlatformSpecific(): String
+}
+```
+
+В `androidMain` — реализация:
+
+```kotlin
+// androidMain
+actual class PlatformService {
+    actual fun getSomethingPlatformSpecific(): String {
+        // код, использующий Android API
+        return "Android result"
+    }
+}
+```
+
+Виджет в `commonMain` может использовать `PlatformService`, не зная деталей Android‑реализации.
+
+### Вариант 2: отдельные провайдеры/интерфейсы
+
+В `commonMain`:
+
+```kotlin
+interface MyDataProvider {
+    suspend fun loadData(): String
+}
+```
+
+В `androidMain` — реализация, которая использует Android API.  
+Через DI (например, Koin) в `AppActivity` этот провайдер прокидывается в общий код.
+
+
+---
+
+## 📝 Что делать НЕ рекомендуется
+
+- менять `AppActivity` и другие классы в `androidMain` без необходимости (FileProvider используется в качестве примера, дополнять новые методы только при необходимости);
+- реализовывать сложный fallback по геолокации или работу с внешними API, если это не часть задания.
+
+---
+
+## ✔ Итог
+
+Чтобы создать свой виджет, нужно:
+
+- открыть проект в Android Studio и запустить приложение на эмуляторе или реальном устройстве;
+- в `commonMain`:
+  - добавить новый тип в `WidgetType`;
+  - создать файл `MyWidget.kt` в `presentation/components/widgets`;
+  - реализовать Composable, который читает данные из `payload` (или берёт локальные данные) и отображает UI;
+  - зарегистрировать виджет в `WidgetsOverlay.kt`;
+- использовать виджет погоды (`WeatherWidget.kt`) как пример структуры и стиля кода.
+
+Полезный курс по Jetpack Compose: https://www.youtube.com/watch?v=Dsfnb9H66B0&list=PLmjT2NFTgg1cyNFqS2ST6nTDxZH_bYjba
