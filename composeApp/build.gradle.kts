@@ -150,7 +150,7 @@ android {
     defaultConfig {
         minSdk = 21
         targetSdk = 35
-        resValue("string", "app_name", "Screon Player")
+        resValue("string", "app_name", "Screon Widgets")
 
 
         applicationId = "videoTrade.screonPlayer.app.androidApp"
@@ -169,11 +169,11 @@ android {
                 "proguard-android.pro"
             )
 
-            resValue("string", "app_name", "ScreonPlayer") // имя приложения
+            resValue("string", "app_name", "ScreonWidgets") // имя приложения
         }
         debug {
             // Чтобы на dev-устройствах отличалось
-            resValue("string", "app_name", "ScreonPlayer (debug)")
+            resValue("string", "app_name", "ScreonWidgets (debug)")
         }
     }
 }

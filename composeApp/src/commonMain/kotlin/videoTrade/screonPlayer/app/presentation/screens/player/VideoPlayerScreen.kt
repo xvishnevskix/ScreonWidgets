@@ -102,7 +102,7 @@ class VideoPlayerScreen(
                                         ),
                                         payload = mapOf(
                                             "city" to "Moscow",
-                                            "lat" to "55.75",
+                                            "lat" to "55.76",
                                             "lon" to "37.61"
                                         )
                                     )
